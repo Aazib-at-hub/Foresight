@@ -33,20 +33,16 @@ export default function DashboardHeader({
   
   const activeCommitments = commitments.filter(c => c.status === "Active");
 
+  // Calculate variables for the explainable metric panel
+  const sumRisk = activeCommitments.reduce((acc, c) => acc + c.riskScore, 0);
+  const avgRisk = activeCommitments.length > 0 ? Math.round(sumRisk / activeCommitments.length) : 0;
+  const workloadPenalty = activeCommitments.length > 4 ? (activeCommitments.length - 4) * 5 : 0;
+  const criticalCount = activeCommitments.filter(c => c.riskLevel === "Critical" || c.riskLevel === "High").length;
+  const criticalPenalty = criticalCount * 12;
+
   // Calculate dynamic health score
   const calculateHealthScore = () => {
     if (activeCommitments.length === 0) return 100;
-    
-    const sumRisk = activeCommitments.reduce((acc, c) => acc + c.riskScore, 0);
-    const avgRisk = sumRisk / activeCommitments.length;
-    
-    // Workload penalty if they have > 4 active commitments
-    const workloadPenalty = activeCommitments.length > 4 ? (activeCommitments.length - 4) * 5 : 0;
-    
-    // Critical risk penalty
-    const criticalCount = activeCommitments.filter(c => c.riskLevel === "Critical").length;
-    const criticalPenalty = criticalCount * 12;
-
     const health = Math.max(0, Math.min(100, Math.round(100 - avgRisk - workloadPenalty - criticalPenalty)));
     return health;
   };
@@ -63,6 +59,7 @@ export default function DashboardHeader({
   const meta = getHealthMeta(healthScore);
 
   const [exportingGoogle, setExportingGoogle] = React.useState(false);
+  const [showHealthDetails, setShowHealthDetails] = React.useState(false);
 
   const handleExportAllToGoogleCalendar = async () => {
     if (activeCommitments.length === 0) {
@@ -156,8 +153,13 @@ export default function DashboardHeader({
 
       <div className="flex flex-wrap items-center gap-6 md:gap-10 mt-6 md:mt-0">
         
-        {/* Dynamic score */}
-        <div className="flex items-center gap-3">
+        {/* Dynamic score with explainability detail card */}
+        <div 
+          className="flex items-center gap-3 relative cursor-help"
+          onMouseEnter={() => setShowHealthDetails(true)}
+          onMouseLeave={() => setShowHealthDetails(false)}
+          onClick={() => setShowHealthDetails(!showHealthDetails)}
+        >
           <div className="text-right">
             <span className="text-[9px] uppercase tracking-wider opacity-50 block font-semibold">Commitment Health</span>
             <span className={`text-[10px] font-mono font-bold ${meta.color} bg-white/40 px-2 py-0.5 border border-[#1A1A1A]/5 rounded`}>
@@ -168,6 +170,46 @@ export default function DashboardHeader({
             <span className="text-5xl font-serif italic font-light tracking-tight">{healthScore}</span>
             <span className="text-sm font-serif italic opacity-60">%</span>
           </div>
+
+          {showHealthDetails && (
+            <div className="absolute top-14 right-0 z-50 w-64 bg-white border border-[#1A1A1A]/15 p-4 shadow-xl font-sans text-left space-y-3">
+              <div className="border-b border-[#1A1A1A]/10 pb-1.5">
+                <span className="text-[9px] uppercase font-bold tracking-wider text-[#1A1A1A]/50 font-mono block">
+                  Dynamic Health Diagnostics
+                </span>
+                <span className="text-[10px] font-serif italic text-[#1A1A1A]/70 leading-normal">
+                  Calculated dynamically from live active obligations. No black-box magic numbers.
+                </span>
+              </div>
+              <div className="space-y-1.5 text-xs font-mono">
+                <div className="flex justify-between">
+                  <span className="text-[#1A1A1A]/60">Base Health:</span>
+                  <span className="text-emerald-700 font-bold">+100%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#1A1A1A]/60">Avg Risk Penalty:</span>
+                  <span className="text-rose-600 font-bold">-{avgRisk}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#1A1A1A]/60">Workload Penalty:</span>
+                  <span className="text-rose-600 font-bold">-{workloadPenalty}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#1A1A1A]/60">Overlap Penalty:</span>
+                  <span className="text-rose-600 font-bold">-{criticalPenalty}%</span>
+                </div>
+                <div className="flex justify-between border-t border-[#1A1A1A]/10 pt-1.5 font-bold">
+                  <span>Actual Health:</span>
+                  <span className={healthScore >= 70 ? "text-emerald-800" : "text-rose-700"}>
+                    {healthScore}%
+                  </span>
+                </div>
+              </div>
+              <p className="text-[9px] text-[#1A1A1A]/50 italic font-serif leading-relaxed border-t border-[#1A1A1A]/5 pt-1.5">
+                * Workload penalty incurs -5% per active commitment exceeding 4 limits. Overlap penalty incurs -12% per active high/critical risk threshold.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Counts */}

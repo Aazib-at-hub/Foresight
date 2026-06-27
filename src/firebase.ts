@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { initializeApp } from "firebase/app";
 import { 
   getAuth, 
@@ -25,15 +26,26 @@ import {
   onSnapshot
 } from "firebase/firestore";
 
-const firebaseConfig = {
-  projectId: "polished-coda-48gvj",
-  appId: "1:393720103625:web:047433d26d2ee182f4c318",
-  apiKey: "AIzaSyDPiVOAzbzC9tdW0En2IiUkXNlEPOUw-Rg",
-  authDomain: "polished-coda-48gvj.firebaseapp.com",
-  firestoreDatabaseId: "ai-studio-497f21ed-b991-4b46-ba16-4d6c5f8d1325",
-  storageBucket: "polished-coda-48gvj.firebasestorage.app",
-  messagingSenderId: "393720103625"
+declare const __FIREBASE_CONFIG__: {
+  projectId?: string;
+  appId?: string;
+  apiKey?: string;
+  authDomain?: string;
+  firestoreDatabaseId?: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
 };
+
+const firebaseConfig = {
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || __FIREBASE_CONFIG__?.projectId || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || __FIREBASE_CONFIG__?.appId || "",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || __FIREBASE_CONFIG__?.apiKey || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || __FIREBASE_CONFIG__?.authDomain || "",
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || __FIREBASE_CONFIG__?.firestoreDatabaseId || "default",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || __FIREBASE_CONFIG__?.storageBucket || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || __FIREBASE_CONFIG__?.messagingSenderId || ""
+};
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

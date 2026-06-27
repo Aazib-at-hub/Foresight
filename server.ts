@@ -585,6 +585,92 @@ async function startServer() {
     }
   });
 
+  // FR-13: Scenario Simulator - Interactive AI simulation card
+  app.post("/api/commitments/simulate-scenarios", async (req, res) => {
+    try {
+      const { commitment, subtasks, currentDate } = req.body;
+      if (!commitment) {
+        return res.status(400).json({ error: "Commitment is required" });
+      }
+
+      const today = currentDate || new Date().toISOString().split("T")[0];
+      const prompt = `
+        You are the Simulation Agent of "Foresight", a predictive Commitment Intelligence Platform.
+        Analyze different execution scenarios for the user's active commitment.
+        
+        Commitment: "${commitment.title}"
+        Deadline: "${commitment.deadline}"
+        Priority: "${commitment.priority}"
+        Current Success Probability: ${commitment.successProbability}%
+        Subtasks: ${JSON.stringify(subtasks || [])}
+        Current Date: ${today}
+        
+        Provide EXACTLY 4 simulations analyzing outcome variances based on different execution strategies:
+        1. "If I start today" (Optimistic: proactive dedication of attention/focus)
+        2. "If I delay 1 day" (Pessimistic: procrastination impact on timeline compressibility)
+        3. "If I remove one commitment" (Rationalized: scope reduction/optimization impact)
+        4. "If I ignore recommendations" (Worst-case: compounding risks, no adjustments)
+        
+        For each scenario, provide:
+        - "id": a unique string (e.g., "start_today", "delay_1_day", "reduce_scope", "ignore_advice")
+        - "title": EXACTLY one of the 4 scenario titles above.
+        - "successProbability": A realistic percentage probability (0 to 100) based on mathematical probability decay over time.
+        - "description": A highly-scannable 1-sentence diagnostic explaining why this specific probability occurs (e.g. citing compressing timelines, scope size, or congestion relief).
+        
+        Ensure that:
+        - "If I start today" has the highest or near-highest probability (usually 85% to 95%).
+        - "If I delay 1 day" suffers a clear drop (usually 10% to 20% lower).
+        - "If I remove one commitment" provides an optimized yield (usually 90% to 97%).
+        - "If I ignore recommendations" drops to a critical state (usually 20% to 40%).
+        
+        Respond with ONLY a JSON object of this structure:
+        {
+          "scenarios": [
+            {
+              "id": "string",
+              "title": "string",
+              "successProbability": number,
+              "description": "string"
+            }
+          ]
+        }
+      `;
+
+      const schema = {
+        type: Type.OBJECT,
+        properties: {
+          scenarios: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                title: { type: Type.STRING },
+                successProbability: { type: Type.NUMBER },
+                description: { type: Type.STRING }
+              },
+              required: ["id", "title", "successProbability", "description"]
+            }
+          }
+        },
+        required: ["scenarios"]
+      };
+
+      const result = await generateJson(prompt, {
+        scenarios: [
+          { id: "start_today", title: "If I start today", successProbability: 91, description: "Proactive timeblocking tonight unblocks critical paths and distributes cognitive load evenly." },
+          { id: "delay_1_day", title: "If I delay 1 day", successProbability: 72, description: "Postponing execution forces tomorrow's agenda to absorb concurrent tasks, compounding strain." },
+          { id: "reduce_scope", title: "If I remove one commitment", successProbability: 95, description: "Eliminating auxiliary features reduces required work depth, freeing 4 hours of focus." },
+          { id: "ignore_advice", title: "If I ignore recommendations", successProbability: 34, description: "Failing to adjust results in immediate timeline congestion and a high probability of overlap failure." }
+        ]
+      }, schema);
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

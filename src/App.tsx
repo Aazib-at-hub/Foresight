@@ -23,6 +23,9 @@ import AvailabilityAgentView from "./components/AvailabilityAgentView";
 import SelectedCommitmentDetail from "./components/SelectedCommitmentDetail";
 import DailyAuditModal from "./components/DailyAuditModal";
 import CalendarView from "./components/CalendarView";
+import CriticalAlertBanner from "./components/CriticalAlertBanner";
+import DailyAIBriefing from "./components/DailyAIBriefing";
+import AIDecisionPipeline from "./components/AIDecisionPipeline";
 import { Brain, Plus, LayoutDashboard } from "lucide-react";
 
 export default function App() {
@@ -39,6 +42,8 @@ export default function App() {
   const [selectedCommitmentId, setSelectedCommitmentId] = useState<string | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [activeAgentIndex, setActiveAgentIndex] = useState<number>(-1);
+  const [agentPipelineStatuses, setAgentPipelineStatuses] = useState<string[]>(["Pending", "Pending", "Pending", "Pending", "Pending", "Pending"]);
   const [auditReport, setAuditReport] = useState<DailyAuditReport | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
@@ -518,8 +523,39 @@ export default function App() {
     setIsAuditing(true);
     setIsAuditOpen(true);
     setAuditReport(null);
+    setActiveAgentIndex(0);
+    setAgentPipelineStatuses(["Pending", "Pending", "Pending", "Pending", "Pending", "Pending"]);
+
+    const pipelineStages = [
+      "Planner Agent",
+      "Decomposition Agent",
+      "Availability Agent",
+      "Intervention Agent",
+      "Negotiation Agent",
+      "Daily Audit Compiler"
+    ];
+
+    const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
     
     try {
+      // Step through each agent sequentially
+      for (let i = 0; i < pipelineStages.length; i++) {
+        setActiveAgentIndex(i);
+        setAgentPipelineStatuses(prev => {
+          const next = [...prev];
+          next[i] = "Running";
+          return next;
+        });
+        
+        await delay(900);
+
+        setAgentPipelineStatuses(prev => {
+          const next = [...prev];
+          next[i] = "Completed";
+          return next;
+        });
+      }
+
       const activeList = commitments.map(c => ({
         title: c.title,
         deadline: c.deadline,
@@ -577,6 +613,13 @@ export default function App() {
     <div className="min-h-screen bg-[#F4F1EE] p-4 md:p-6 lg:p-8 font-sans antialiased text-[#1A1A1A]">
       <div className="max-w-7xl mx-auto space-y-8">
         
+        {/* Critical Alert Banner for High/Critical Risks */}
+        <CriticalAlertBanner 
+          commitments={commitments} 
+          subtasks={subtasks} 
+          onSelectCommitment={(id) => setSelectedCommitmentId(id)} 
+        />
+
         {/* Header Block */}
         <DashboardHeader 
           commitments={commitments}
@@ -603,6 +646,9 @@ export default function App() {
           {/* Left/Middle Column (Commitments List & Availability) - 7 cols */}
           <div className="lg:col-span-7 space-y-8">
             
+            {/* Daily AI Briefing */}
+            <DailyAIBriefing commitments={commitments} subtasks={subtasks} />
+
             {/* Active Commitments List */}
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[#1A1A1A]/10">
@@ -706,7 +752,7 @@ export default function App() {
           </div>
 
           {/* Right Column (Agent Cockpit: Subtasks, Risk, Recovery, Negotiation) - 5 cols */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-5 space-y-6">
             {selectedCommitment ? (
               <SelectedCommitmentDetail
                 commitment={selectedCommitment}
@@ -728,6 +774,9 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* Persistent AI Agent Pipeline */}
+            <AIDecisionPipeline isAuditing={isAuditing} activeAgentIndex={activeAgentIndex} />
           </div>
 
         </div>

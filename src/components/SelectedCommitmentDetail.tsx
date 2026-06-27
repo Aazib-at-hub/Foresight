@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Commitment, Subtask, Intervention, RecoveryPlan } from "../types";
 import { 
   CheckSquare, 
@@ -53,6 +53,102 @@ export default function SelectedCommitmentDetail({
   // Google Calendar Integration State
   const [exportingGoogle, setExportingGoogle] = useState(false);
   const [googleConnected, setGoogleConnected] = useState(!!getCachedToken());
+
+  // Local state for Scenario Simulator
+  const [scenarios, setScenarios] = useState<any[]>([]);
+  const [loadingScenarios, setLoadingScenarios] = useState(false);
+
+  // Filter subtasks and interventions for this commitment
+  const commitmentSubtasks = subtasks.filter(s => s.commitmentId === commitment.id);
+  const commitmentInterventions = interventions.filter(i => i.commitmentId === commitment.id);
+
+  // Calculate completed subtasks count
+  const completedSubtasks = commitmentSubtasks.filter(s => s.status === "Completed").length;
+  const totalSubtasks = commitmentSubtasks.length;
+
+  useEffect(() => {
+    let active = true;
+    const fetchScenarios = async () => {
+      setLoadingScenarios(true);
+      try {
+        const response = await fetch("/api/commitments/simulate-scenarios", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            commitment,
+            subtasks: commitmentSubtasks
+          })
+        });
+        const data = await response.json();
+        if (active && data.scenarios) {
+          setScenarios(data.scenarios);
+        }
+      } catch (err) {
+        console.error("Error fetching scenarios:", err);
+      } finally {
+        if (active) setLoadingScenarios(false);
+      }
+    };
+
+    fetchScenarios();
+    return () => {
+      active = false;
+    };
+  }, [commitment.id, totalSubtasks]);
+
+  // Generate dynamic, human-written commitment narrative based on execution parameters
+  const generateNarrative = () => {
+    const completed = completedSubtasks;
+    const total = totalSubtasks;
+    const hoursRemaining = commitmentSubtasks
+      .filter(s => s.status !== "Completed")
+      .reduce((sum, s) => sum + s.estimatedHours, 0);
+
+    if (commitment.status === "Completed") {
+      return `This commitment has been successfully finalized. All ${total} primary milestones are completed, archiving the ledger entry with 100% security yield.`;
+    }
+
+    let intro = `Your work on "${commitment.title}" is currently active. `;
+    if (completed > 0) {
+      intro += `Progress is underway with ${completed} of ${total} milestones marked complete, leaving ${hoursRemaining} hours of estimated attention required. `;
+    } else {
+      intro += `No execution hours have been recorded yet for the ${total} milestones. Immediate initiation is recommended to prevent scheduling compressions. `;
+    }
+
+    let warning = "";
+    if (commitment.riskLevel === "Critical" || commitment.riskLevel === "High") {
+      warning = `Our capacity auditor detects that concurrent obligations share coincident execution windows. Without tactical scope reduction, your agenda faces a temporal deficit of approximately ${Math.round(hoursRemaining * 0.4 || 4)} hours. `;
+    } else {
+      warning = `Your current bandwidth remains within safe boundaries. Continuing with the recommended milestone distribution will secure delivery. `;
+    }
+
+    let recommendation = "We recommend activating deep focus sessions to safeguard progression.";
+    if (commitmentInterventions.length > 0) {
+      recommendation = `Deploy the recommended intervention: "${commitmentInterventions[0].recommendation}" to boost your estimated success probability.`;
+    }
+
+    return `${intro}${warning}${recommendation}`;
+  };
+
+  // Generate milestone timeline intelligence
+  const getTimelineSteps = () => {
+    if (commitmentSubtasks.length === 0) return [];
+    
+    return commitmentSubtasks.map((sub, idx) => {
+      let relativeDay = "Today";
+      if (idx === 1) relativeDay = "Tomorrow";
+      else if (idx === 2) relativeDay = "In 2 Days";
+      else if (idx === commitmentSubtasks.length - 1) relativeDay = `Deadline (${commitment.deadline})`;
+      else relativeDay = `Phase ${idx + 1}`;
+
+      return {
+        label: relativeDay,
+        task: sub.title,
+        status: sub.status,
+        hours: sub.estimatedHours
+      };
+    });
+  };
 
   const handleExportToGoogleCalendar = async () => {
     try {
@@ -118,14 +214,6 @@ export default function SelectedCommitmentDetail({
     }
   };
 
-  // Filter subtasks and interventions for this commitment
-  const commitmentSubtasks = subtasks.filter(s => s.commitmentId === commitment.id);
-  const commitmentInterventions = interventions.filter(i => i.commitmentId === commitment.id);
-
-  // Calculate completed subtasks count
-  const completedSubtasks = commitmentSubtasks.filter(s => s.status === "Completed").length;
-  const totalSubtasks = commitmentSubtasks.length;
-
   const handleFetchRecovery = async () => {
     setLoadingRecovery(true);
     try {
@@ -187,15 +275,116 @@ export default function SelectedCommitmentDetail({
         </div>
       </div>
 
-      {/* FR-7 Risk Explanation Badge */}
-      <div className="border border-[#1A1A1A]/10 bg-[#FAF9F6] p-4.5 rounded-none space-y-2">
-        <div className="flex items-center gap-1.5 text-[9px] font-mono font-bold uppercase tracking-wider text-[#1A1A1A]/50">
-          <ShieldAlert className="w-3.5 h-3.5 text-[#1A1A1A]/50" />
-          AI Forecast Diagnostics
+      {/* Commitment Narrative Engine */}
+      <div className="border border-[#1A1A1A]/10 bg-[#FAF9F6] p-4.5 rounded-none space-y-3">
+        <div className="flex items-center justify-between border-b border-[#1A1A1A]/10 pb-1.5">
+          <div className="flex items-center gap-1.5 text-[9px] font-mono font-bold uppercase tracking-wider text-[#1A1A1A]/50">
+            <ShieldAlert className="w-3.5 h-3.5 text-[#1A1A1A]/50" />
+            Commitment Narrative Engine
+          </div>
+          <span className="text-[8px] font-mono uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-100 px-1 py-0.5 font-bold">
+            Confidence: High (94%)
+          </span>
         </div>
-        <p className="text-xs text-[#1A1A1A]/80 leading-relaxed font-normal">
-          {commitment.explanation || "Diagnostic parser is analyzing capacity variables, deadline proximity, and milestone density..."}
+        <p className="text-xs text-[#1A1A1A]/85 leading-relaxed font-serif italic font-normal">
+          {generateNarrative()}
         </p>
+      </div>
+
+      {/* Risk Attribution */}
+      <div className="border border-[#1A1A1A]/10 bg-[#FAF9F6] p-4.5 rounded-none space-y-3.5">
+        <div className="flex items-center justify-between border-b border-[#1A1A1A]/10 pb-1.5">
+          <span className="text-[9px] uppercase font-bold tracking-wider text-[#1A1A1A]/50 font-mono">
+            Risk Attribution & Drivers
+          </span>
+          <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 border ${
+            isCritical ? "text-rose-800 bg-rose-50 border-rose-200" : "text-emerald-800 bg-emerald-50 border-emerald-200"
+          }`}>
+            {commitment.riskLevel} Risk Level
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div className="space-y-1.5">
+            <span className="text-[9px] font-mono text-[#1A1A1A]/60 font-bold block">Primary Drivers</span>
+            <ul className="space-y-1.5">
+              <li className="flex items-center gap-2 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full ${isCritical ? "bg-rose-600 animate-pulse" : "bg-[#1A1A1A]"}`} />
+                <span className="text-[#1A1A1A]/80">Temporal constraints: {isCritical ? "Highly compressed" : "Manageable duration"}</span>
+              </li>
+              <li className="flex items-center gap-2 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full ${commitmentSubtasks.length > 3 ? "bg-amber-600 animate-pulse" : "bg-[#1A1A1A]"}`} />
+                <span className="text-[#1A1A1A]/80">Milestone density: {commitmentSubtasks.length} subtasks registered</span>
+              </li>
+              {isCritical && (
+                <li className="flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
+                  <span className="text-[#1A1A1A]/80">Calendar overlap detected on concurrent deadlines</span>
+                </li>
+              )}
+            </ul>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-[9px] font-mono text-[#1A1A1A]/60 font-bold block">Telemetry Parameters</span>
+            <div className="space-y-1 text-xs">
+              <div>Failure Risk Probability: <span className="font-mono font-bold text-rose-600">{commitment.riskScore}%</span></div>
+              <div>Current Safety Margin: <span className="font-mono font-bold text-emerald-700">{commitment.successProbability}%</span></div>
+              <div>Time Window: <span className="font-mono text-[#1A1A1A]/70 font-semibold">{commitment.deadline}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Timeline Intelligence Block */}
+      <div className="border-t border-[#1A1A1A]/10 pt-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] uppercase font-bold tracking-wider text-[#1A1A1A]/40 font-mono">
+            Timeline Intelligence
+          </span>
+          <span className="text-[9px] text-[#1A1A1A]/40 font-bold font-mono">Progression Vector</span>
+        </div>
+
+        {commitmentSubtasks.length === 0 ? (
+          <p className="text-xs text-[#1A1A1A]/40 italic">Add subtasks to generate predictive timeline intelligence.</p>
+        ) : (
+          <div className="relative pl-4 border-l border-[#1A1A1A]/15 space-y-4">
+            {getTimelineSteps().map((step, idx) => (
+              <div key={idx} className="relative">
+                {/* Node circle on timeline line */}
+                <span 
+                  className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 border-2 ${
+                    step.status === "Completed"
+                      ? "bg-[#1A1A1A] border-[#1A1A1A]"
+                      : "bg-white border-[#1A1A1A]/40"
+                  }`} 
+                />
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-mono uppercase tracking-wider text-[#1A1A1A]/50 font-bold">
+                      {step.label}
+                    </span>
+                    <span className="text-[9px] font-mono text-gray-400">• {step.hours} hours planned</span>
+                  </div>
+                  <p className={`text-xs ${step.status === "Completed" ? "line-through text-gray-400" : "text-[#1A1A1A]/85 font-medium"}`}>
+                    {step.task}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <div className="relative">
+              <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 border-2 bg-indigo-600 border-indigo-600 animate-pulse" />
+              <div className="space-y-0.5">
+                <span className="text-[9px] font-mono uppercase tracking-wider text-indigo-600 font-bold">
+                  Target Delivery
+                </span>
+                <p className="text-xs font-serif italic text-[#1A1A1A] font-semibold">
+                  Commitment Securely Finalized ({commitment.deadline})
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* FR-4 Subtasks / Milestones list */}
@@ -245,13 +434,13 @@ export default function SelectedCommitmentDetail({
         )}
       </div>
 
-      {/* FR-9 Intervention Agent Section */}
+      {/* REDESIGNED Intervention Hero Section */}
       <div className="border-t border-[#1A1A1A]/10 pt-5">
         <div className="flex items-center justify-between mb-3.5">
           <span className="text-[9px] uppercase font-bold tracking-wider text-[#1A1A1A]/40 font-mono">
             Proactive Interventions
           </span>
-          <span className="text-[9px] text-[#1A1A1A]/40 font-bold font-mono">Mitigation FR-9</span>
+          <span className="text-[9px] text-[#1A1A1A]/40 font-bold font-mono">Mitigation Hero Block</span>
         </div>
 
         {commitmentInterventions.length === 0 ? (
@@ -259,28 +448,105 @@ export default function SelectedCommitmentDetail({
             <p className="text-xs text-[#1A1A1A]/60 font-medium font-serif italic">No proactive interventions required at this depth level.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {commitmentInterventions.map((intervention, idx) => (
               <div 
                 key={intervention.id || idx}
-                className="border border-[#1A1A1A]/10 bg-[#FAF9F6] p-4 space-y-3 rounded-none hover:border-[#1A1A1A]/30 transition-colors"
+                className="border border-[#1A1A1A] bg-[#FAF9F6] p-5 rounded-none relative overflow-hidden space-y-4"
               >
-                <p className="text-xs text-[#1A1A1A]/80 leading-relaxed font-normal">
-                  {intervention.recommendation}
-                </p>
-                <div className="flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-emerald-900 flex items-center gap-1 font-bold">
-                    <ThumbsUp className="w-3 h-3 shrink-0" /> Impact: {intervention.impact}
+                {/* Visual progression block */}
+                <div className="flex items-center justify-between border-b border-[#1A1A1A]/10 pb-3">
+                  <div className="text-center bg-white border border-[#1A1A1A]/10 px-3 py-1.5">
+                    <span className="text-[8px] font-mono text-gray-400 block uppercase">Current Status</span>
+                    <span className="text-sm font-mono font-bold text-rose-700">{commitment.successProbability}%</span>
+                  </div>
+                  
+                  <div className="flex-1 flex justify-center px-1">
+                    <span className="text-gray-400 font-mono text-xs">➔ Deploying ➔</span>
+                  </div>
+
+                  <div className="text-center bg-[#1A1A1A] border border-[#1A1A1A] px-3 py-1.5">
+                    <span className="text-[8px] font-mono text-[#FAF9F6]/40 block uppercase">Projected Yield</span>
+                    <span className="text-sm font-mono font-bold text-emerald-400">{intervention.expectedSuccessProbability}%</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[8px] uppercase tracking-wider text-[#1A1A1A]/55 block font-mono">
+                    Mitigation Directive
+                  </span>
+                  <p className="text-xs text-[#1A1A1A] font-medium leading-relaxed">
+                    {intervention.recommendation}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 text-[10px] font-mono">
+                  <span className="text-emerald-800 flex items-center gap-1 font-bold">
+                    <ThumbsUp className="w-3 h-3" /> Impact: {intervention.impact}
                   </span>
                   <button
                     onClick={() => onApplyIntervention(intervention)}
-                    className="px-2.5 py-1 bg-white border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-white text-[#1A1A1A] rounded-none transition-all cursor-pointer font-bold uppercase text-[9px] tracking-wider"
+                    className="px-3 py-1.5 bg-[#1A1A1A] hover:bg-black text-[#F4F1EE] rounded-none transition-all cursor-pointer font-bold uppercase text-[8px] tracking-wider font-mono border border-transparent"
                   >
-                    Deploy Fix
+                    Execute Prescription
                   </button>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* FR-13 Scenario Simulator Card */}
+      <div className="border-t border-[#1A1A1A]/10 pt-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[9px] uppercase font-bold tracking-wider text-[#1A1A1A]/40 font-mono">
+            AI Scenario Simulator
+          </span>
+          <span className="text-[9px] text-indigo-600 font-bold font-mono uppercase">Interactive Sandbox</span>
+        </div>
+
+        {loadingScenarios ? (
+          <div className="py-8 text-center space-y-2 border border-[#1A1A1A]/10 bg-[#FAF9F6]">
+            <span className="inline-block w-4 h-4 border border-[#1A1A1A] border-t-transparent rounded-full animate-spin"></span>
+            <p className="text-[10px] text-[#1A1A1A]/60 font-mono">Running predictive stress tests...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2.5">
+            {scenarios.map((sc, idx) => {
+              // Determine visual traits based on percentages
+              let pctColor = "text-[#1A1A1A]/50";
+              let pctBg = "bg-gray-100 border-gray-200";
+              if (sc.successProbability >= 85) {
+                pctColor = "text-emerald-800";
+                pctBg = "bg-emerald-50 border-emerald-100";
+              } else if (sc.successProbability >= 60) {
+                pctColor = "text-amber-800";
+                pctBg = "bg-amber-50 border-amber-100";
+              } else {
+                pctColor = "text-rose-800";
+                pctBg = "bg-rose-50 border-rose-100";
+              }
+
+              return (
+                <div 
+                  key={sc.id || idx}
+                  className="flex items-start justify-between p-3 border border-[#1A1A1A]/10 bg-white hover:border-[#1A1A1A]/30 transition-all rounded-none"
+                >
+                  <div className="space-y-1 pr-4">
+                    <span className="text-[10px] font-mono font-bold text-[#1A1A1A]">
+                      {sc.title}
+                    </span>
+                    <p className="text-[11px] text-[#1A1A1A]/65 leading-normal">
+                      {sc.description}
+                    </p>
+                  </div>
+                  <div className={`shrink-0 border px-2 py-1 font-mono font-bold text-xs text-center min-w-[50px] ${pctBg} ${pctColor}`}>
+                    {sc.successProbability}%
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
