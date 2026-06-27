@@ -1,0 +1,6 @@
+{
+  "name": "Foresight",
+  "description": "AI-powered commitment risk forecasting and proactive intervention platform designed to predict and prevent deadline failures.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
